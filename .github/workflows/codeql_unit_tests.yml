@@ -75,6 +75,12 @@ jobs:
           codeql-home: ${{ github.workspace }}/codeql_home
           add-to-path: false
 
+      - name: CodeQL Cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.codeql
+          key: codeql-cache
+          
       - name: Install CodeQL packs
         uses: ./.github/actions/install-codeql-packs
         with:
