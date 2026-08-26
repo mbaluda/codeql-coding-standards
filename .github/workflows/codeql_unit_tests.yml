@@ -15,7 +15,8 @@ on:
       - main
       - next
       - "rc/**"
-
+  workflow_dispatch:
+  
 jobs:
  
   prepare-unit-test-matrix:
