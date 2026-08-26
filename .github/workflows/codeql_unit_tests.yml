@@ -16,9 +16,8 @@ on:
       - next
       - "rc/**"
   workflow_dispatch:
-  
+
 jobs:
- 
   prepare-unit-test-matrix:
     name: Prepare CodeQL unit test matrix
     runs-on: ubuntu-22.04
@@ -58,43 +57,22 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r scripts/requirements.txt
 
-      - name: Cache CodeQL tools
-        id: cache-codeql
-        uses: actions/cache@v5
+      - name: Cache CodeQL
+        uses: actions/cache@v6
         with:
-          # A list of files, directories, and wildcard patterns to cache and restore
-          path: ${{github.workspace}}/codeql_home
-          # An explicit key for restoring and saving the cache
-          key: codeql-home-${{matrix.os}}-${{matrix.codeql_cli}}-${{matrix.codeql_standard_library}}
+          path: ~/.codeql
+          key: ${{ runner.os }}-codeql-cache-${{ matrix.language }}-${{ matrix.codeql_cli }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-codeql-cache-${{ matrix.language }}-${{ matrix.codeql_cli }}
+            ${{ runner.os }}-codeql-cache-${{ matrix.language }}
 
       - name: Install CodeQL
-        if: steps.cache-codeql.outputs.cache-hit != 'true'
         uses: ./.github/actions/install-codeql
         with:
           codeql-cli-version: ${{ matrix.codeql_cli }}
           codeql-stdlib-version: ${{ matrix.codeql_standard_library }}
           codeql-home: ${{ github.workspace }}/codeql_home
           add-to-path: false
-
-      - name: Cache CodeQL packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.codeql/packages
-          key: ${{ runner.os }}-codeql-packages-${{ matrix.codeql_cli }}-${{ matrix.codeql_standard_library_ident }}-${{ hashFiles(format('{0}/**/codeql-pack.lock.yml', matrix.language)) }}
-          restore-keys: |
-            ${{ runner.os }}-codeql-packages-${{ matrix.codeql_cli }}-${{ matrix.codeql_standard_library_ident }}-
-            ${{ runner.os }}-codeql-packages-${{ matrix.codeql_cli }}-
-            ${{ runner.os }}-codeql-packages-
-
-      - name: Cache CodeQL compilation
-        uses: actions/cache@v6
-        with:
-          path: ${{ runner.temp }}/codeql-compilation-cache
-          key: ${{ runner.os }}-codeql-compilation-${{ github.workflow }}-${{ matrix.language }}-${{ matrix.codeql_cli }}-${{ matrix.codeql_standard_library_ident }}-${{ hashFiles(format('{0}/**/*.ql', matrix.language), format('{0}/**/*.qll', matrix.language), format('{0}/**/qlpack.yml', matrix.language), format('{0}/**/codeql-pack.lock.yml', matrix.language)) }}
-          restore-keys: |
-            ${{ runner.os }}-codeql-compilation-${{ github.workflow }}-${{ matrix.language }}-${{ matrix.codeql_cli }}-${{ matrix.codeql_standard_library_ident }}-
-            ${{ runner.os }}-codeql-compilation-${{ github.workflow }}-${{ matrix.language }}-
-            ${{ runner.os }}-codeql-compilation-
 
       - name: Install CodeQL packs
         uses: ./.github/actions/install-codeql-packs
@@ -104,7 +82,7 @@ jobs:
       - name: Pre-Compile Queries
         id: pre-compile-queries
         run: |
-          ${{ github.workspace }}/codeql_home/codeql/codeql query compile --threads 0 --compilation-cache=${{ runner.temp }}/codeql-compilation-cache ${{ matrix.language }}
+          ${{ github.workspace }}/codeql_home/codeql/codeql query compile --threads 0 ${{ matrix.language }}
 
       - name: Run test suites
         id: run-test-suites
@@ -139,7 +117,6 @@ jobs:
           runner_temp = os.environ['RUNNER_TEMP']
           codeql_home = os.environ['CODEQL_HOME']
           codeql_bin = os.path.join(codeql_home, 'codeql', 'codeql')
-          compilation_cache = os.path.join(runner_temp, 'codeql-compilation-cache')
 
           language_root = Path(workspace, '${{ matrix.language }}')
           test_roots = list(map(str, language_root.glob('*/test')))
@@ -156,7 +133,7 @@ jobs:
               os.makedirs(os.path.dirname(test_report_path), exist_ok=True)
               test_report_file = open(test_report_path, 'w')
               files_to_close.append(test_report_file)
-              procs.append(subprocess.Popen([codeql_bin, "test", "run", "--failing-exitcode=122", f"--slice={slice}/{num_slices}", "--ram=2048", "--format=json", f"--compilation-cache={compilation_cache}", *test_roots], stdout=test_report_file, stderr=subprocess.PIPE))
+              procs.append(subprocess.Popen([codeql_bin, "test", "run", "--failing-exitcode=122", f"--slice={slice}/{num_slices}", "--ram=2048", "--format=json", *test_roots], stdout=test_report_file, stderr=subprocess.PIPE))
 
             for p in procs:
               _, err = p.communicate()
